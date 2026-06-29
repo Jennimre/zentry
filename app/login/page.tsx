@@ -67,7 +67,7 @@ export default function LoginPage() {
 
         <p className="text-center mt-6">
           ¿No tienes cuenta?
-          <a href="/registro" className="cursor-pointer text-[#6D28D9] font-bold ml-2">
+          <a href="/membresia" className="cursor-pointer text-[#6D28D9] font-bold ml-2">
             Regístrate
           </a>
         </p>
