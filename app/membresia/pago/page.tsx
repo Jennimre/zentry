@@ -1,9 +1,9 @@
 "use client";
 
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
 
-export default function PagoPage() {
+function PagoContenido() {
   const searchParams = useSearchParams();
 
   const plan = searchParams.get("plan") || "Zen Pro";
@@ -24,9 +24,7 @@ export default function PagoPage() {
             Pago seguro Zentry
           </span>
 
-          <h1 className="text-5xl font-black mt-6">
-            Completa tu membresía
-          </h1>
+          <h1 className="text-5xl font-black mt-6">Completa tu membresía</h1>
 
           <p className="text-gray-500 text-xl mt-4">
             Elige pagar con Yape o tarjeta.
@@ -35,12 +33,11 @@ export default function PagoPage() {
 
         <div className="grid lg:grid-cols-2 gap-8">
           <div className="bg-white rounded-[2rem] shadow-xl p-8 border border-[#EFE3FF]">
-            <h2 className="text-3xl font-black mb-6">
-              Resumen del pedido
-            </h2>
+            <h2 className="text-3xl font-black mb-6">Resumen del pedido</h2>
 
             <div className="bg-[#F8F3FF] rounded-3xl p-6">
               <p className="text-gray-500">Plan seleccionado</p>
+
               <h3 className="text-4xl font-black text-[#6D28D9] mt-2">
                 {plan}
               </h3>
@@ -50,9 +47,7 @@ export default function PagoPage() {
 
               <div className="mt-8 bg-gradient-to-r from-[#6D28D9] to-[#9B00FF] text-white rounded-3xl p-6">
                 <p className="text-purple-100">Total a pagar</p>
-                <h2 className="text-5xl font-black mt-2">
-                  S/ {precio}
-                </h2>
+                <h2 className="text-5xl font-black mt-2">S/ {precio}</h2>
               </div>
             </div>
 
@@ -65,9 +60,7 @@ export default function PagoPage() {
           </div>
 
           <div className="bg-white rounded-[2rem] shadow-xl p-8 border border-[#EFE3FF]">
-            <h2 className="text-3xl font-black mb-6">
-              Método de pago
-            </h2>
+            <h2 className="text-3xl font-black mb-6">Método de pago</h2>
 
             <div className="grid grid-cols-2 gap-4 mb-8">
               <button
@@ -150,23 +143,24 @@ export default function PagoPage() {
                 </div>
 
                 <button
-                  onClick={() =>
-                    alert("Pago procesado correctamente 💜")
-                  }
+                  onClick={() => alert("Pago procesado correctamente 💜")}
                   className="w-full bg-gradient-to-r from-[#6D28D9] to-[#9B00FF] text-white py-4 rounded-2xl font-black"
                 >
                   Pagar ahora
                 </button>
-
-                <p className="text-sm text-gray-500 text-center">
-                  Esta pantalla es visual. Para cobros reales se conecta con Culqi,
-                  Mercado Pago, Izipay o Stripe.
-                </p>
               </div>
             )}
           </div>
         </div>
       </section>
     </main>
+  );
+}
+
+export default function PagoPage() {
+  return (
+    <Suspense fallback={<div className="p-10">Cargando pago...</div>}>
+      <PagoContenido />
+    </Suspense>
   );
 }
