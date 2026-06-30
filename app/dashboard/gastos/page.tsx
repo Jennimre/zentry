@@ -1,9 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { auth, database } from "../../../lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
+import { ref, get, push, set, remove } from "firebase/database";
 
 type Gasto = {
-  id: number;
+  id: string;
   fecha: string;
   concepto: string;
   categoria: string;
@@ -16,30 +20,13 @@ type Gasto = {
 const fechaHoy = () => new Date().toISOString().slice(0, 10);
 
 export default function GastosPage() {
-  const [gastos, setGastos] = useState<Gasto[]>([
-    {
-      id: 1,
-      fecha: fechaHoy(),
-      concepto: "Compra de tela",
-      categoria: "Materia prima",
-      metodoPago: "Yape",
-      proveedor: "Proveedor textil",
-      monto: 350,
-      observacion: "",
-    },
-    {
-      id: 2,
-      fecha: "2026-06-28",
-      concepto: "Publicidad en Instagram",
-      categoria: "Marketing",
-      metodoPago: "Tarjeta",
-      proveedor: "Meta Ads",
-      monto: 80,
-      observacion: "",
-    },
-  ]);
+  const router = useRouter();
 
-  const [editandoId, setEditandoId] = useState<number | null>(null);
+  const [uid, setUid] = useState("");
+  const [cargando, setCargando] = useState(true);
+
+  const [gastos, setGastos] = useState<Gasto[]>([]);
+  const [editandoId, setEditandoId] = useState<string | null>(null);
 
   const [fecha, setFecha] = useState(fechaHoy());
   const [concepto, setConcepto] = useState("");
@@ -49,6 +36,35 @@ export default function GastosPage() {
   const [monto, setMonto] = useState("");
   const [observacion, setObservacion] = useState("");
   const [busqueda, setBusqueda] = useState("");
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+
+      setUid(user.uid);
+
+      const gastosRef = ref(database, "gastos/" + user.uid);
+      const snapshot = await get(gastosRef);
+
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+
+        const lista = Object.entries(data).map(([id, gasto]: any) => ({
+          id,
+          ...gasto,
+        })) as Gasto[];
+
+        setGastos(lista.reverse());
+      }
+
+      setCargando(false);
+    });
+
+    return () => unsubscribe();
+  }, [router]);
 
   const limpiarFormulario = () => {
     setEditandoId(null);
@@ -61,40 +77,44 @@ export default function GastosPage() {
     setObservacion("");
   };
 
-  const guardarGasto = () => {
+  const guardarGasto = async () => {
+    if (!uid) {
+      alert("No se encontró el usuario.");
+      return;
+    }
+
     if (!concepto || !monto) {
       alert("Completa concepto y monto.");
       return;
     }
 
-    if (editandoId !== null) {
+    const gastoData = {
+      fecha,
+      concepto,
+      categoria,
+      metodoPago,
+      proveedor,
+      monto: Number(monto),
+      observacion,
+    };
+
+    if (editandoId) {
+      await set(ref(database, `gastos/${uid}/${editandoId}`), gastoData);
+
       setGastos(
         gastos.map((gasto) =>
-          gasto.id === editandoId
-            ? {
-                ...gasto,
-                fecha,
-                concepto,
-                categoria,
-                metodoPago,
-                proveedor,
-                monto: Number(monto),
-                observacion,
-              }
-            : gasto
+          gasto.id === editandoId ? { id: editandoId, ...gastoData } : gasto
         )
       );
     } else {
+      const nuevoRef = push(ref(database, "gastos/" + uid));
+
       const nuevoGasto: Gasto = {
-        id: Date.now(),
-        fecha,
-        concepto,
-        categoria,
-        metodoPago,
-        proveedor,
-        monto: Number(monto),
-        observacion,
+        id: nuevoRef.key || Date.now().toString(),
+        ...gastoData,
       };
+
+      await set(nuevoRef, gastoData);
 
       setGastos([nuevoGasto, ...gastos]);
     }
@@ -113,10 +133,13 @@ export default function GastosPage() {
     setObservacion(gasto.observacion);
   };
 
-  const eliminarGasto = (id: number) => {
+  const eliminarGasto = async (id: string) => {
+    if (!uid) return;
+
     const confirmar = confirm("¿Seguro que deseas eliminar este gasto?");
     if (!confirmar) return;
 
+    await remove(ref(database, `gastos/${uid}/${id}`));
     setGastos(gastos.filter((gasto) => gasto.id !== id));
   };
 
@@ -126,41 +149,53 @@ export default function GastosPage() {
       .includes(busqueda.toLowerCase())
   );
 
-  const totalHoy = gastos
-    .filter((g) => g.fecha === fechaHoy())
-    .reduce((total, g) => total + g.monto, 0);
+  const totalHoy = useMemo(
+    () =>
+      gastos
+        .filter((g) => g.fecha === fechaHoy())
+        .reduce((total, g) => total + g.monto, 0),
+    [gastos]
+  );
 
-  const totalGeneral = gastos.reduce((total, g) => total + g.monto, 0);
+  const mesActual = fechaHoy().slice(0, 7);
+
+  const totalMes = useMemo(
+    () =>
+      gastos
+        .filter((g) => g.fecha.startsWith(mesActual))
+        .reduce((total, g) => total + g.monto, 0),
+    [gastos, mesActual]
+  );
+
+  const totalGeneral = useMemo(
+    () => gastos.reduce((total, g) => total + g.monto, 0),
+    [gastos]
+  );
+
+  if (cargando) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-2xl font-bold text-[#8500B8]">
+          Cargando gastos...
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
       <section>
         <h1 className="text-5xl font-black">Gastos</h1>
         <p className="text-gray-500 mt-2">
-          Registra y revisa solo el dinero que sale de tu negocio.
+          Registra, edita y controla el dinero que sale de tu negocio.
         </p>
       </section>
 
       <section className="grid md:grid-cols-4 gap-5">
-        <div className="bg-white p-6 rounded-3xl shadow">
-          <p className="text-gray-500">Hoy</p>
-          <h2 className="text-3xl font-black">S/ {totalHoy.toFixed(2)}</h2>
-        </div>
-
-        <div className="bg-white p-6 rounded-3xl shadow">
-          <p className="text-gray-500">Total acumulado</p>
-          <h2 className="text-3xl font-black">S/ {totalGeneral.toFixed(2)}</h2>
-        </div>
-
-        <div className="bg-white p-6 rounded-3xl shadow">
-          <p className="text-gray-500">Registros</p>
-          <h2 className="text-3xl font-black">{gastos.length}</h2>
-        </div>
-
-        <div className="bg-red-500 text-white p-6 rounded-3xl shadow">
-          <p className="text-red-100">Control de gastos</p>
-          <h2 className="text-3xl font-black">Activo</h2>
-        </div>
+        <Card titulo="Gastos de hoy" valor={`S/ ${totalHoy.toFixed(2)}`} />
+        <Card titulo="Gastos del mes" valor={`S/ ${totalMes.toFixed(2)}`} />
+        <Card titulo="Total acumulado" valor={`S/ ${totalGeneral.toFixed(2)}`} />
+        <Card titulo="Registros" valor={String(gastos.length)} morado />
       </section>
 
       <section className="bg-white p-8 rounded-3xl shadow">
@@ -247,7 +282,7 @@ export default function GastosPage() {
             <textarea
               value={observacion}
               onChange={(e) => setObservacion(e.target.value)}
-              placeholder="Ej. Compra de insumos, pago de movilidad, recibo..."
+              placeholder="Ej. Pago de insumos, movilidad, recibo..."
               className="w-full border p-4 rounded-2xl mt-2 min-h-28"
             />
           </div>
@@ -334,6 +369,27 @@ export default function GastosPage() {
           )}
         </div>
       </section>
+    </div>
+  );
+}
+
+function Card({
+  titulo,
+  valor,
+  morado = false,
+}: {
+  titulo: string;
+  valor: string;
+  morado?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-3xl p-6 shadow ${
+        morado ? "bg-[#8500B8] text-white" : "bg-white"
+      }`}
+    >
+      <p className={morado ? "text-violet-100" : "text-gray-500"}>{titulo}</p>
+      <h2 className="text-3xl font-bold mt-3">{valor}</h2>
     </div>
   );
 }

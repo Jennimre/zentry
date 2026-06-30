@@ -1,0 +1,46 @@
+const herramientas = [
+  {
+    titulo: "Kardex",
+    descripcion: "Controla entradas, salidas, stock y movimientos de inventario.",
+    icono: "📦",
+    ruta: "/dashboard/herramientas/kardex",
+    boton: "Abrir Kardex",
+  },
+  {
+    titulo: "Margen",
+    descripcion: "Calcula cuánto ganas realmente por cada producto vendido.",
+    icono: "📊",
+    ruta: "/dashboard/herramientas/margen",
+    boton: "Calcular margen",
+  },
+  {
+    titulo: "Punto de Equilibrio",
+    descripcion: "Descubre cuántas unidades debes vender para no perder dinero.",
+    icono: "⚖️",
+    ruta: "/dashboard/herramientas/punto-equilibrio",
+    boton: "Calcular",
+  },
+  {
+    titulo: "Ganancias",
+    descripcion: "Analiza ingresos, costos y utilidad neta de tu negocio.",
+    icono: "💰",
+    ruta: "/dashboard/herramientas/ganancias",
+    boton: "Ver ganancias",
+  },
+  {
+    titulo: "Reportes",
+    descripcion: "Revisa reportes de ingresos, gastos e inventario.",
+    icono: "📈",
+    ruta: "/dashboard/herramientas/reportes",
+    boton: "Ver reportes",
+  },
+  {
+    titulo: "Exportar",
+    descripcion: "Descarga tus registros en PDF o Excel.",
+    icono: "📤",
+    ruta: "/dashboard/herramientas/exportar",
+    boton: "Exportar",
+  },
+];
+{ name: "Resumen", href: "/dashboard", icon: "🏠" },
+{ name: "Herramientas", href: "/dashboard/herramientas", icon: "🛠" },
