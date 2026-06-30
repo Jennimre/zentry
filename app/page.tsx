@@ -33,7 +33,7 @@ export default function Home() {
           </a>
 
           <a
-            href="/membresia/pago"
+            href="/registro"
             className="cursor-pointer bg-gradient-to-r from-[#6D28D9] to-[#9B00FF] text-white px-8 py-4 rounded-2xl font-bold shadow-xl"
           >
             Comenzar Gratis →
@@ -60,7 +60,7 @@ export default function Home() {
 
           <div className="flex gap-6 mt-10">
             <a
-              href="/membresia"
+              href="/registro"
               className="cursor-pointer bg-gradient-to-r from-[#6D28D9] to-[#9B00FF] text-white px-10 py-5 rounded-2xl font-bold text-lg shadow-xl"
             >
               Comenzar Gratis →
