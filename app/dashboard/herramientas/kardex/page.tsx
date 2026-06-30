@@ -2,14 +2,28 @@
 
 import { useEffect, useState } from "react";
 
+type TipoMovimiento = "entrada" | "salida";
+
 type Movimiento = {
   id: number;
   fecha: string;
   producto: string;
-  tipo: "entrada" | "salida";
+  tipo: TipoMovimiento;
   cantidad: number;
   costoUnitario: number;
   descripcion: string;
+};
+
+type FilaKardex = Movimiento & {
+  entradaCantidad: number;
+  entradaCU: number;
+  entradaTotal: number;
+  salidaCantidad: number;
+  salidaCU: number;
+  salidaTotal: number;
+  saldoCantidad: number;
+  saldoCU: number;
+  saldoTotal: number;
 };
 
 export default function KardexPage() {
@@ -19,53 +33,74 @@ export default function KardexPage() {
   const [form, setForm] = useState({
     fecha: new Date().toISOString().split("T")[0],
     producto: "",
-    tipo: "entrada" as "entrada" | "salida",
+    tipo: "entrada" as TipoMovimiento,
     cantidad: "",
     costoUnitario: "",
     descripcion: "",
   });
 
   useEffect(() => {
-    const datosGuardados = localStorage.getItem("zentry-kardex");
-    if (datosGuardados) {
-      setMovimientos(JSON.parse(datosGuardados));
-    }
+    const guardado = localStorage.getItem("zentry-kardex");
+    if (guardado) setMovimientos(JSON.parse(guardado));
   }, []);
 
   useEffect(() => {
     localStorage.setItem("zentry-kardex", JSON.stringify(movimientos));
   }, [movimientos]);
 
-  const cantidad = Number(form.cantidad);
-  const costoUnitario = Number(form.costoUnitario);
-  const valorTotal = cantidad * costoUnitario;
+  const filasKardex: FilaKardex[] = [...movimientos]
+    .sort((a, b) => a.fecha.localeCompare(b.fecha))
+    .reduce((filas: FilaKardex[], mov) => {
+      const saldoAnterior = filas[filas.length - 1];
 
-  const stockActual = movimientos.reduce((total, mov) => {
-    return mov.tipo === "entrada"
-      ? total + mov.cantidad
-      : total - mov.cantidad;
-  }, 0);
+      const saldoCantidadAnterior = saldoAnterior?.saldoCantidad || 0;
+      const saldoTotalAnterior = saldoAnterior?.saldoTotal || 0;
 
-  const valorInventario = movimientos.reduce((total, mov) => {
-    const valor = mov.cantidad * mov.costoUnitario;
-    return mov.tipo === "entrada" ? total + valor : total - valor;
-  }, 0);
+      const totalMovimiento = mov.cantidad * mov.costoUnitario;
 
-  const costoPromedio =
-    stockActual > 0 ? valorInventario / stockActual : 0;
+      let saldoCantidad = saldoCantidadAnterior;
+      let saldoTotal = saldoTotalAnterior;
+
+      if (mov.tipo === "entrada") {
+        saldoCantidad += mov.cantidad;
+        saldoTotal += totalMovimiento;
+      } else {
+        saldoCantidad -= mov.cantidad;
+        saldoTotal -= totalMovimiento;
+      }
+
+      const saldoCU = saldoCantidad > 0 ? saldoTotal / saldoCantidad : 0;
+
+      filas.push({
+        ...mov,
+        entradaCantidad: mov.tipo === "entrada" ? mov.cantidad : 0,
+        entradaCU: mov.tipo === "entrada" ? mov.costoUnitario : 0,
+        entradaTotal: mov.tipo === "entrada" ? totalMovimiento : 0,
+        salidaCantidad: mov.tipo === "salida" ? mov.cantidad : 0,
+        salidaCU: mov.tipo === "salida" ? mov.costoUnitario : 0,
+        salidaTotal: mov.tipo === "salida" ? totalMovimiento : 0,
+        saldoCantidad,
+        saldoCU,
+        saldoTotal,
+      });
+
+      return filas;
+    }, []);
+
+  const stockActual = filasKardex.at(-1)?.saldoCantidad || 0;
+  const valorInventario = filasKardex.at(-1)?.saldoTotal || 0;
+  const costoPromedio = filasKardex.at(-1)?.saldoCU || 0;
 
   const registrarMovimiento = () => {
-    if (!form.producto || !form.cantidad || !form.costoUnitario) {
+    const cantidad = Number(form.cantidad);
+    const costoUnitario = Number(form.costoUnitario);
+
+    if (!form.producto || cantidad <= 0 || costoUnitario < 0) {
       alert("Completa producto, cantidad y costo unitario.");
       return;
     }
 
-    if (cantidad <= 0 || costoUnitario < 0) {
-      alert("La cantidad debe ser mayor a 0.");
-      return;
-    }
-
-    const nuevoMovimiento: Movimiento = {
+    const movimiento: Movimiento = {
       id: editandoId ?? Date.now(),
       fecha: form.fecha,
       producto: form.producto,
@@ -77,13 +112,10 @@ export default function KardexPage() {
 
     if (editandoId) {
       setMovimientos(
-        movimientos.map((mov) =>
-          mov.id === editandoId ? nuevoMovimiento : mov
-        )
+        movimientos.map((m) => (m.id === editandoId ? movimiento : m))
       );
-      setEditandoId(null);
     } else {
-      setMovimientos([nuevoMovimiento, ...movimientos]);
+      setMovimientos([...movimientos, movimiento]);
     }
 
     limpiarFormulario();
@@ -102,13 +134,12 @@ export default function KardexPage() {
   };
 
   const eliminarMovimiento = (id: number) => {
-    const confirmar = confirm("¿Eliminar este movimiento?");
-    if (!confirmar) return;
-
-    setMovimientos(movimientos.filter((mov) => mov.id !== id));
+    if (!confirm("¿Eliminar este movimiento?")) return;
+    setMovimientos(movimientos.filter((m) => m.id !== id));
   };
 
   const limpiarFormulario = () => {
+    setEditandoId(null);
     setForm({
       fecha: new Date().toISOString().split("T")[0],
       producto: "",
@@ -117,19 +148,17 @@ export default function KardexPage() {
       costoUnitario: "",
       descripcion: "",
     });
-    setEditandoId(null);
   };
+
+  const formatoSoles = (valor: number) => `S/ ${valor.toFixed(2)}`;
 
   return (
     <div className="min-h-screen bg-[#F8F4FF] p-8">
       <div className="max-w-7xl mx-auto space-y-8">
-
         <div>
-          <h1 className="text-4xl font-black text-[#1D1B3A]">
-            Kardex
-          </h1>
+          <h1 className="text-4xl font-black text-[#1D1B3A]">Kardex</h1>
           <p className="text-gray-600 mt-2">
-            Registra entradas y salidas de inventario de tu negocio.
+            Controla entradas, salidas y saldo de inventario.
           </p>
         </div>
 
@@ -142,16 +171,16 @@ export default function KardexPage() {
           </div>
 
           <div className="bg-white p-6 rounded-2xl shadow">
-            <p className="text-gray-500">Valor del inventario</p>
+            <p className="text-gray-500">Valor inventario</p>
             <h2 className="text-3xl font-black text-green-600">
-              S/ {valorInventario.toFixed(2)}
+              {formatoSoles(valorInventario)}
             </h2>
           </div>
 
           <div className="bg-white p-6 rounded-2xl shadow">
             <p className="text-gray-500">Costo promedio</p>
             <h2 className="text-3xl font-black text-[#1D1B3A]">
-              S/ {costoPromedio.toFixed(2)}
+              {formatoSoles(costoPromedio)}
             </h2>
           </div>
         </div>
@@ -165,18 +194,14 @@ export default function KardexPage() {
             <input
               type="date"
               value={form.fecha}
-              onChange={(e) =>
-                setForm({ ...form, fecha: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, fecha: e.target.value })}
               className="p-4 rounded-xl border"
             />
 
             <input
               type="text"
               value={form.producto}
-              onChange={(e) =>
-                setForm({ ...form, producto: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, producto: e.target.value })}
               placeholder="Producto"
               className="p-4 rounded-xl border"
             />
@@ -184,10 +209,7 @@ export default function KardexPage() {
             <select
               value={form.tipo}
               onChange={(e) =>
-                setForm({
-                  ...form,
-                  tipo: e.target.value as "entrada" | "salida",
-                })
+                setForm({ ...form, tipo: e.target.value as TipoMovimiento })
               }
               className="p-4 rounded-xl border"
             >
@@ -198,9 +220,7 @@ export default function KardexPage() {
             <input
               type="number"
               value={form.cantidad}
-              onChange={(e) =>
-                setForm({ ...form, cantidad: e.target.value })
-              }
+              onChange={(e) => setForm({ ...form, cantidad: e.target.value })}
               placeholder="Cantidad"
               className="p-4 rounded-xl border"
             />
@@ -226,13 +246,6 @@ export default function KardexPage() {
             />
           </div>
 
-          <div className="bg-[#F8F4FF] p-4 rounded-xl">
-            <p className="text-gray-700">
-              Valor del movimiento:{" "}
-              <strong>S/ {valorTotal.toFixed(2)}</strong>
-            </p>
-          </div>
-
           <div className="flex gap-4">
             <button
               onClick={registrarMovimiento}
@@ -252,66 +265,88 @@ export default function KardexPage() {
 
         <div className="bg-white rounded-3xl shadow p-8 overflow-x-auto">
           <h2 className="text-2xl font-black text-[#1D1B3A] mb-5">
-            Movimientos registrados
+            Kardex valorizado
           </h2>
 
-          <table className="w-full border-collapse">
+          <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="bg-[#F8F4FF] text-left">
-                <th className="p-4">Fecha</th>
-                <th className="p-4">Producto</th>
-                <th className="p-4">Tipo</th>
-                <th className="p-4">Cantidad</th>
-                <th className="p-4">Costo Unit.</th>
-                <th className="p-4">Total</th>
-                <th className="p-4">Descripción</th>
-                <th className="p-4">Acciones</th>
+              <tr className="bg-[#F8F4FF]">
+                <th rowSpan={2} className="p-3 border">Fecha</th>
+                <th rowSpan={2} className="p-3 border">Producto</th>
+                <th rowSpan={2} className="p-3 border">Detalle</th>
+                <th colSpan={3} className="p-3 border text-green-700">Entradas</th>
+                <th colSpan={3} className="p-3 border text-red-700">Salidas</th>
+                <th colSpan={3} className="p-3 border text-[#8500B8]">Saldo</th>
+                <th rowSpan={2} className="p-3 border">Acciones</th>
+              </tr>
+
+              <tr className="bg-[#F8F4FF]">
+                <th className="p-3 border">Cantidad</th>
+                <th className="p-3 border">C.U.</th>
+                <th className="p-3 border">Total</th>
+                <th className="p-3 border">Cantidad</th>
+                <th className="p-3 border">C.U.</th>
+                <th className="p-3 border">Total</th>
+                <th className="p-3 border">Cantidad</th>
+                <th className="p-3 border">C.U.</th>
+                <th className="p-3 border">Total</th>
               </tr>
             </thead>
 
             <tbody>
-              {movimientos.length === 0 ? (
+              {filasKardex.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-6 text-center text-gray-500">
+                  <td colSpan={13} className="p-6 text-center text-gray-500">
                     Aún no hay movimientos registrados.
                   </td>
                 </tr>
               ) : (
-                movimientos.map((mov) => (
-                  <tr key={mov.id} className="border-b">
-                    <td className="p-4">{mov.fecha}</td>
-                    <td className="p-4 font-bold">{mov.producto}</td>
-                    <td className="p-4">
-                      <span
-                        className={`px-3 py-1 rounded-full text-sm font-bold ${
-                          mov.tipo === "entrada"
-                            ? "bg-green-100 text-green-700"
-                            : "bg-red-100 text-red-700"
-                        }`}
-                      >
-                        {mov.tipo}
-                      </span>
-                    </td>
-                    <td className="p-4">{mov.cantidad}</td>
-                    <td className="p-4">S/ {mov.costoUnitario.toFixed(2)}</td>
-                    <td className="p-4">
-                      S/ {(mov.cantidad * mov.costoUnitario).toFixed(2)}
-                    </td>
-                    <td className="p-4">{mov.descripcion || "-"}</td>
-                    <td className="p-4 flex gap-2">
-                      <button
-                        onClick={() => editarMovimiento(mov)}
-                        className="bg-yellow-100 text-yellow-700 px-3 py-2 rounded-lg font-bold"
-                      >
-                        Editar
-                      </button>
+                filasKardex.map((fila) => (
+                  <tr key={fila.id} className="border-b">
+                    <td className="p-3 border">{fila.fecha}</td>
+                    <td className="p-3 border font-bold">{fila.producto}</td>
+                    <td className="p-3 border">{fila.descripcion || fila.tipo}</td>
 
-                      <button
-                        onClick={() => eliminarMovimiento(mov.id)}
-                        className="bg-red-100 text-red-700 px-3 py-2 rounded-lg font-bold"
-                      >
-                        Eliminar
-                      </button>
+                    <td className="p-3 border">{fila.entradaCantidad || "-"}</td>
+                    <td className="p-3 border">
+                      {fila.entradaCU ? formatoSoles(fila.entradaCU) : "-"}
+                    </td>
+                    <td className="p-3 border">
+                      {fila.entradaTotal ? formatoSoles(fila.entradaTotal) : "-"}
+                    </td>
+
+                    <td className="p-3 border">{fila.salidaCantidad || "-"}</td>
+                    <td className="p-3 border">
+                      {fila.salidaCU ? formatoSoles(fila.salidaCU) : "-"}
+                    </td>
+                    <td className="p-3 border">
+                      {fila.salidaTotal ? formatoSoles(fila.salidaTotal) : "-"}
+                    </td>
+
+                    <td className="p-3 border font-bold">{fila.saldoCantidad}</td>
+                    <td className="p-3 border font-bold">
+                      {formatoSoles(fila.saldoCU)}
+                    </td>
+                    <td className="p-3 border font-bold">
+                      {formatoSoles(fila.saldoTotal)}
+                    </td>
+
+                    <td className="p-3 border">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => editarMovimiento(fila)}
+                          className="bg-yellow-100 text-yellow-700 px-3 py-2 rounded-lg font-bold"
+                        >
+                          Editar
+                        </button>
+
+                        <button
+                          onClick={() => eliminarMovimiento(fila.id)}
+                          className="bg-red-100 text-red-700 px-3 py-2 rounded-lg font-bold"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -319,7 +354,6 @@ export default function KardexPage() {
             </tbody>
           </table>
         </div>
-
       </div>
     </div>
   );
